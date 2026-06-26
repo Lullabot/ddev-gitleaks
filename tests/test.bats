@@ -60,7 +60,7 @@ teardown() {
   ddev delete -Oy "${PROJNAME}" >/dev/null 2>&1
   # Persist TESTDIR if running inside GitHub Actions (for artifact upload).
   if [ -n "${GITHUB_ENV:-}" ]; then
-    [ -e "${GITHUB_ENV:-}" ] && echo "TESTDIR=${HOME}/tmp/${PROJNAME}" >> "${GITHUB_ENV}"
+    [ -e "${GITHUB_ENV:-}" ] && echo "TESTDIR=${TESTDIR}" >> "${GITHUB_ENV}"
   else
     [ "${TESTDIR}" != "" ] && rm -rf "${TESTDIR}"
   fi
@@ -103,6 +103,9 @@ teardown() {
   run ddev exec "gitleaks-scan"
   assert_success
   assert_output --partial "gitleaks detected likely secrets"
+  # Prove the .env file-scan branch actually fired (the env-var scan alone would
+  # satisfy the banner): the wrapper tags file findings with their relative path.
+  assert_output --partial "project file: .env"
   refute_output --partial "${SECRET_ENV}"
   refute_output --partial "${SECRET_FILE}"
 

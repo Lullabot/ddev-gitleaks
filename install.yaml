@@ -1,6 +1,9 @@
 name: gitleaks
 
 project_files:
-  - docker-compose.gitleaks.yaml
+  - web-build/Dockerfile.gitleaks
+  - web-build/gitleaks-scan.sh
+  - web-build/gitleaks.toml
+  - config.gitleaks.yaml
 
 ddev_version_constraint: '>= v1.24.10'

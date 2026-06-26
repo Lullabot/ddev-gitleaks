@@ -22,6 +22,11 @@
     {
       "matchManagers": ["github-actions"],
       "automerge": false
+    },
+    {
+      "description": "Review gitleaks bumps manually: a bad version breaks the web image build (curl of a missing release asset), which is the one path the scanner's never-block guarantee does not cover.",
+      "matchDepNames": ["gitleaks/gitleaks"],
+      "automerge": false
     }
   ]
 }

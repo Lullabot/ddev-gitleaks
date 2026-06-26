@@ -55,7 +55,8 @@ benign variables there if needed.
 ## Advanced Customization
 
 Pin a different gitleaks version with the `GITLEAKS_VERSION` build arg in
-`.ddev/web-build/Dockerfile.gitleaks` (default `8.30.1`), then rebuild:
+`.ddev/web-build/Dockerfile.gitleaks` (Renovate keeps the default up to date),
+then rebuild:
 
 ```bash
 ddev debug rebuild

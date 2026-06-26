@@ -19,6 +19,8 @@ as Claude Code. When the scan finds something, it prints a redacted warning at t
 end of `ddev start` and exits 0; it never aborts startup. Secret values are always
 redacted in the output.
 
+![Example gitleaks secret-scan warning printed at the end of ddev start, listing redacted findings followed by the warning banner](images/secret-scan-warning.webp)
+
 ## Installation
 
 ```bash

@@ -9,13 +9,10 @@
 #   bats ./tests/test.bats
 # To exclude release tests:
 #   bats ./tests/test.bats --filter-tags '!release'
-# For debugging:
-#   bats ./tests/test.bats --show-output-of-passing-tests --verbose-run --print-output-on-failure
 
 setup() {
   set -eu -o pipefail
 
-  # Override this variable for your add-on:
   export GITHUB_REPO=Lullabot/ddev-gitleaks
 
   TEST_BREW_PREFIX="$(brew --prefix 2>/dev/null || true)"
@@ -39,24 +36,29 @@ setup() {
 }
 
 health_checks() {
-  # Do something useful here that verifies the add-on
-
-  # You can check for specific information in headers:
-  # run curl -sfI https://${PROJNAME}.ddev.site
-  # assert_output --partial "HTTP/2 200"
-  # assert_output --partial "test_header"
-
-  # Or check if some command gives expected output:
-  DDEV_DEBUG=true run ddev launch
+  # gitleaks (secret scanner) and the scan wrapper must be installed on PATH.
+  run ddev exec "command -v gitleaks"
   assert_success
-  assert_output --partial "FULLURL https://${PROJNAME}.ddev.site"
+  assert_output --partial "gitleaks"
+
+  run ddev exec "gitleaks version"
+  assert_success
+
+  run ddev exec "command -v gitleaks-scan"
+  assert_success
+
+  # Negative baseline: a clean project must produce no leaks, so the wrapper
+  # exits 0 and prints no warning. This also guards against false positives from
+  # DDEV's own environment variables (see web-build/gitleaks.toml allowlist).
+  run ddev exec "gitleaks-scan"
+  assert_success
+  refute_output --partial "gitleaks detected likely secrets"
 }
 
 teardown() {
   set -eu -o pipefail
   ddev delete -Oy "${PROJNAME}" >/dev/null 2>&1
-  # Persist TESTDIR if running inside GitHub Actions. Useful for uploading test result artifacts
-  # See example at https://github.com/ddev/github-action-add-on-test#preserving-artifacts
+  # Persist TESTDIR if running inside GitHub Actions (for artifact upload).
   if [ -n "${GITHUB_ENV:-}" ]; then
     [ -e "${GITHUB_ENV:-}" ] && echo "TESTDIR=${HOME}/tmp/${PROJNAME}" >> "${GITHUB_ENV}"
   else
@@ -72,6 +74,39 @@ teardown() {
   run ddev restart -y
   assert_success
   health_checks
+}
+
+@test "secret scan warns on env var and .env file, redacted, never blocks" {
+  set -eu -o pipefail
+  echo "# secret-scan detection test for project ${PROJNAME} in $(pwd)" >&3
+  run ddev add-on get "${DIR}"
+  assert_success
+  run ddev restart -y
+  assert_success
+
+  # High-entropy fake secrets. The env var name contains the gitleaks keyword
+  # "TOKEN" and the .env line contains "SECRET_KEY", so the generic-api-key rule
+  # (keyword + entropy) fires deterministically. Fixed literals keep CI stable.
+  SECRET_ENV="a1b2c3d4e5f6g7h8i9j0klmnop"
+  SECRET_FILE="z9y8x7w6v5u4t3s2r1q0ponmlk"
+
+  # (a) inject a global-style web environment variable.
+  run ddev config --web-environment-add="TERMINUS_MACHINE_TOKEN=${SECRET_ENV}"
+  assert_success
+  run ddev restart -y
+  assert_success
+
+  # (b) drop a project .env file at the approot (bind-mounted into the container).
+  printf 'API_SECRET_KEY=%s\n' "${SECRET_FILE}" > "${TESTDIR}/.env"
+
+  # The wrapper must warn, redact both plaintext values, and still exit 0.
+  run ddev exec "gitleaks-scan"
+  assert_success
+  assert_output --partial "gitleaks detected likely secrets"
+  refute_output --partial "${SECRET_ENV}"
+  refute_output --partial "${SECRET_FILE}"
+
+  rm -f "${TESTDIR}/.env"
 }
 
 # bats test_tags=release
